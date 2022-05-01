@@ -21,9 +21,14 @@ import math
 import os
 import glob
 
+import os
+
+def cls():
+    os.system('cls' if os.name=='nt' else 'clear')
+
 class bitstream:
-    def __init__(self, filename):
-        self.bits, self.zeros, self.ones, self.bins, self.test_counter, self.test_flips = process_bistream(filename)
+    def __init__(self, filename, bins):
+        self.bits, self.zeros, self.ones, self.bins, self.test_flips = process_bistream(filename, bins)
 
 class allData:
     def __init__(self, data, energy, ifft):
@@ -60,7 +65,7 @@ def read_values(file_name):
     #             noise_mag.append(10**(float(f_n[1])/20))
     #             #print("Noise:", round(10**(float(f_n[1])/20), 4))
     # file_n.close()
-    
+    print(file_name)
     file = open(file_name)
     data = file.readlines()
 
@@ -116,7 +121,7 @@ def compute_energy(freq, mag):
 
 
 def process_signal(option):
-    dir_list = os.listdir('./' + option)
+    dir_list = './' + option + '/'
 
     # Get list of all files in a given directory sorted by name
     list_of_files = sorted(filter(os.path.isfile, glob.glob(dir_list + '*')))
@@ -125,9 +130,10 @@ def process_signal(option):
     list_of_data = []
     list_of_energies = []
     list_of_iffts = []
+    print(list_of_files)
 
     for i, item in enumerate(list_of_files):
-        this_freq, this_mag = read_values('./' + option + '/' + item)
+        this_freq, this_mag = read_values(item)
         this_csv = rfData(this_freq, this_mag)
 
         this_energy = compute_energy(this_freq, this_mag)
@@ -176,6 +182,7 @@ def flip_counter(full_list, sampling):
     
     work_list = full_list[0:(len(full_list) // sampling)*sampling]
     # discard last few bits
+    length = len(work_list)
     
     for idx in range(len(work_list)):
         flip = 0
@@ -184,12 +191,12 @@ def flip_counter(full_list, sampling):
                 if work_list[idx2+1] != work_list[idx2]:
                     flip += 1
             total_flips.append(flip)
+        print(idx/length)
      
     return total_flips
 
 def process_bistream(filename, bins):
     bits = read_binary_file(filename)
-
 
     # compute number of 1s and 0s
     zeros = 0
@@ -197,8 +204,10 @@ def process_bistream(filename, bins):
     rejects = 0
     byteValues = []
     bitValues = []        # history of each 1, 0 bit
+    length = len(bits)
 
-    for i in bits:           # iterate over each byte
+    for x, i in enumerate(bits):           # iterate over each byte
+        print(x/length)
 
         i_bin = bin(i)[2:]    # make binary string e.g. '0b110' gut the 0b part
         if len(i_bin) != 8:
@@ -237,9 +246,9 @@ all_bitstreams = []
 
 input_num = input("Number of datasets to categorize: ")
 
-for i in range (0, input_num):
+for i in range (1, int(input_num) + 1):
     all_data.append(process_signal(input_num))
-    all_bitstreams.append(bitstream(input_num + '.bit'), all_data[i].num_files)
+    all_bitstreams.append(bitstream(input_num + '.bit', all_data[i - 1].num_files))
 
 
 # """*************** 3. Working with bitsteam file ***************"""
