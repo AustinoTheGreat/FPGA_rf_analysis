@@ -23,13 +23,14 @@ import glob
 
 class bitstream:
     def __init__(self, filename):
-        self.data = read_binary_file(filename)
+        self.bits, self.zeros, self.ones, self.bins, self.test_counter, self.test_flips = process_bistream(filename)
 
 class allData:
     def __init__(self, data, energy, ifft):
         self.data = data
         self.energy = energy
         self.ifft = ifft
+        self.num_files = len(data)
 
 class rfData:
     def __init__(self, freq, mag):
@@ -172,12 +173,9 @@ def flip_counter(full_list, sampling):
     Returns two lists of "time" and flip count values (for ease of plotting)  
     """
     total_flips = []   # initialize history list
-    counter = []       # for [1,2,3...]
     
     work_list = full_list[0:(len(full_list) // sampling)*sampling]
     # discard last few bits
-    
-    count = 0
     
     for idx in range(len(work_list)):
         flip = 0
@@ -186,121 +184,140 @@ def flip_counter(full_list, sampling):
                 if work_list[idx2+1] != work_list[idx2]:
                     flip += 1
             total_flips.append(flip)
-            count += 1
-            counter.append(count)
      
-    return counter, total_flips
+    return total_flips
+
+def process_bistream(filename, bins):
+    bits = read_binary_file(filename)
 
 
-"""************ 2. Working with csv files (oscilloscope) ************"""
+    # compute number of 1s and 0s
+    zeros = 0
+    ones = 0
+    rejects = 0
+    byteValues = []
+    bitValues = []        # history of each 1, 0 bit
+
+    for i in bits:           # iterate over each byte
+
+        i_bin = bin(i)[2:]    # make binary string e.g. '0b110' gut the 0b part
+        if len(i_bin) != 8:
+            i_bin = '0' * (8 - len(i_bin)) + i_bin   # fit to e.g. 00000110 format
+
+        for idx in range(len(i_bin)):
+            if i_bin[idx] == '1':
+                ones += 1
+                bitValues.append(1)
+            else:
+                zeros += 1
+                bitValues.append(0)
+    
+    # print(filename)
+    # print("Number of bytes: " + str(len(bits)) + "\nNumber of zeros: " + str(zeros) + "\nNumber of ones: " + str(ones))
+
+    # binned plot of theoretical information signature using bins
+
+    # count how many transitions within chunks of this size
+    sampling = len(bitValues) // bins 
+    # print("To achieve", bins, "bins, sample at", sampling, "size.")
+    
+    test_flips = flip_counter(bitValues, sampling)
+
+    return bits, zeros, ones, bins, test_flips
+
+
+
+
+
+
+# """************ 2. Working with csv files (oscilloscope) ************"""
+
+all_data = []
+all_bitstreams = []
 
 input_num = input("Number of datasets to categorize: ")
+
 for i in range (0, input_num):
-    
+    all_data.append(process_signal(input_num))
+    all_bitstreams.append(bitstream(input_num + '.bit'), all_data[i].num_files)
+
+
+# """*************** 3. Working with bitsteam file ***************"""
+
+
+# # read binary file and show its values
+# binaryFileName = "ro_11percentLUTs.bit"
+# #ac701.bit   kc705.bit    vcu118.bit
+
+# x = read_binary_file(binaryFileName)
+# print(type(x))
 
 
 
-"""*************** 3. Working with bitsteam file ***************"""
 
 
-# read binary file and show its values
-binaryFileName = "ro_11percentLUTs.bit"
-#ac701.bit   kc705.bit    vcu118.bit
 
-x = read_binary_file(binaryFileName)
-print(type(x))
-
-# compute number of 1s and 0s
-zeros = 0
-ones = 0
-rejects = 0
-byteValues = []
-bitValues = []        # history of each 1, 0 bit
-for i in x:           # iterate over each byte
-    this_byte_ones = 0
-    i_bin = bin(i)[2:]    # make binary string e.g. '0b110' gut the 0b part
-    if len(i_bin) != 8:
-        i_bin = '0'*(8-len(i_bin)) + i_bin   # fit to e.g. 00000110 format
-    
-    for idx in range(len(i_bin)):
-        if i_bin[idx] == '1':
-            ones += 1
-            bitValues.append(1)
-        else:
-            zeros += 1
-            bitValues.append(0)
-   
-print(binaryFileName)
-print("Number of bytes: " + str(len(x)) + "\nNumber of zeros: " + str(zeros) + "\nNumber of ones: " + str(ones))
+# test_counter, test_flips = flip_counter(bitValues, sampling)
+# print("test_flips:", test_flips)
 
 
-# binned plot of theoretical information signature
-bins = end_count - start_count
-# count how many transitions within chunks of this size
-sampling = len(bitValues) // bins 
-print("To achieve", bins, "bins, sample at", sampling, "size.")
-
-test_counter, test_flips = flip_counter(bitValues, sampling)
-print("test_flips:", test_flips)
+# """*************** 4. Plot and save analysis***************"""
 
 
-"""*************** 4. Plot and save analysis***************"""
+# # make a binned version, to match with our energy signature
+# fig_tile = "Binary File Transition Values"
+# ax1 = plt.subplot()
+# l1, = ax1.plot(normalize(energies), color='red', alpha = 0.5)
+# ax2 = ax1.twinx()
+# l2, = ax2.plot(test_flips, 'bo') # 'ro'
+# plt.legend([l1,l2],["Normalized","Bitstream"])
+# plt.xlabel("Time")
+# plt.ylabel("Transitions")
+# plt.title(fig_tile)
+# plt.savefig(fig_tile+".png")
+# plt.show()
 
 
-# make a binned version, to match with our energy signature
-fig_tile = "Binary File Transition Values"
-ax1 = plt.subplot()
-l1, = ax1.plot(normalize(energies), color='red', alpha = 0.5)
-ax2 = ax1.twinx()
-l2, = ax2.plot(test_flips, 'bo') # 'ro'
-plt.legend([l1,l2],["Normalized","Bitstream"])
-plt.xlabel("Time")
-plt.ylabel("Transitions")
-plt.title(fig_tile)
-plt.savefig(fig_tile+".png")
-plt.show()
+# fig_tile = "Time Domain Data From IRFFT"
+# plt.plot(range(0, len(timeDomain)), timeDomain)
+# plt.xlabel("Sample count")
+# plt.ylabel("Magnitude")
+# plt.title(fig_tile)
+# plt.savefig(fig_tile+".png")
+# plt.show()
 
+# fig_tile = "Energy signature (original)"
+# plt.plot(times, energies)
+# plt.xlabel("Sample count")
+# plt.ylabel("Frequency-domain signal energy")
+# plt.title(fig_tile)
+# plt.savefig(fig_tile+".png")
+# plt.show()
 
-fig_tile = "Time Domain Data From IRFFT"
-plt.plot(range(0, len(timeDomain)), timeDomain)
-plt.xlabel("Sample count")
-plt.ylabel("Magnitude")
-plt.title(fig_tile)
-plt.savefig(fig_tile+".png")
-plt.show()
+# fig_tile = "Energy signature (normalized)"
+# plt.plot(times, normalize(energies))
+# plt.xlabel("Sample count")
+# plt.ylabel("Frequency-domain signal energy")
+# plt.title(fig_tile)
+# plt.savefig(fig_tile+".png")
+# plt.show()
 
-fig_tile = "Energy signature (original)"
-plt.plot(times, energies)
-plt.xlabel("Sample count")
-plt.ylabel("Frequency-domain signal energy")
-plt.title(fig_tile)
-plt.savefig(fig_tile+".png")
-plt.show()
+# fig_tile = "Energy signature (log)"
+# plt.plot(times, get_log(energies))
+# plt.xlabel("Sample count")
+# plt.ylabel("Frequency-domain signal energy")
+# plt.title(fig_tile)
+# plt.savefig(fig_tile+".png")
+# plt.show()
 
-fig_tile = "Energy signature (normalized)"
-plt.plot(times, normalize(energies))
-plt.xlabel("Sample count")
-plt.ylabel("Frequency-domain signal energy")
-plt.title(fig_tile)
-plt.savefig(fig_tile+".png")
-plt.show()
+# # open the file in the write mode
+# f_out = open('energy0.csv', 'w')
+# writer = csv.writer(f_out)
+# for value in energies:
+#     # write a row to the csv file
+#     writer.writerow([float(value)])
+# # close the file
+# f_out.close()
 
-fig_tile = "Energy signature (log)"
-plt.plot(times, get_log(energies))
-plt.xlabel("Sample count")
-plt.ylabel("Frequency-domain signal energy")
-plt.title(fig_tile)
-plt.savefig(fig_tile+".png")
-plt.show()
-
-# open the file in the write mode
-f_out = open('energy0.csv', 'w')
-writer = csv.writer(f_out)
-for value in energies:
-    # write a row to the csv file
-    writer.writerow([float(value)])
-# close the file
-f_out.close()
-
-print("All computations done, energies exported")
+# print("All computations done, energies exported")
 
