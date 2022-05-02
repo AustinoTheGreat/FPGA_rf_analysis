@@ -12,6 +12,7 @@ and run. The energies computed are exported to a new CSV. """
 
 import csv
 from fileinput import filename
+from cv2 import _INPUT_ARRAY_STD_VECTOR_UMAT
 import matplotlib.pyplot as plt
 import chardet
 import pandas as pd
@@ -20,6 +21,9 @@ from matplotlib.pyplot import figure
 import math
 import os
 import glob
+import scipy
+from scipy.misc import electrocardiogram
+from scipy.signal import find_peaks
 
 import os
 
@@ -29,6 +33,7 @@ def cls():
 class bitstream:
     def __init__(self, filename, bins):
         self.bits, self.zeros, self.ones, self.bins, self.test_flips = process_bistream(filename, bins)
+        self.peaks = get_peaks(self.test_flips)
 
 class allData:
     def __init__(self, data, energy, ifft):
@@ -36,6 +41,7 @@ class allData:
         self.energy = energy
         self.ifft = ifft
         self.num_files = len(data)
+        self.peaks = get_peaks(self.energy)
 
 class rfData:
     def __init__(self, freq, mag):
@@ -96,6 +102,15 @@ def read_binary_file(fileName):
     with open(fileName, mode='rb') as file: # b is important -> binary
         fileContent = file.read()
     return fileContent
+
+def inverse_transform_helper(data):
+    ifft = []
+    for i, item in enumerate(data):
+        ifft.append(inverse_transform(item))
+
+
+    return ifft
+        
 
 def inverse_transform(freq_domain):
     """
@@ -234,6 +249,29 @@ def process_bistream(filename, bins):
 
     return bits, zeros, ones, bins, test_flips
 
+def remove_extra_signal(signal):
+    for i, item in enumerate(signal.energy):
+        if item <= 300:
+            signal.energy.pop(i)
+            signal.data.pop(i)
+            signal.num_files = signal.num_files - 1
+        else:
+            pass
+    signal.ifft = inverse_transform_helper(signal.data)
+    
+    return signal
+    
+def get_peaks(test_list):
+    
+
+    mean = sum(test_list) / len(test_list)
+    variance = sum([((x - mean) ** 2) for x in test_list]) / len(test_list)
+    res = variance ** 0.5
+
+    bound = mean + 2 * res # two standard deviation above mean, 95% percentile of data treated as peaks
+
+    peaks, _ = find_peaks(test_list, height = bound)
+    return peaks
 
 
 
@@ -249,6 +287,27 @@ input_num = input("Number of datasets to categorize: ")
 for i in range (1, int(input_num) + 1):
     all_data.append(process_signal(input_num))
     all_bitstreams.append(bitstream(input_num + '.bit', all_data[i - 1].num_files))
+
+
+input_choice = input("Import complete, choose between a, b, c")
+
+while(input_choice != 'q'):
+    if input_choice == 'a':
+
+        pass
+    elif input_choice == 'b':
+        for i in range(0, len(all_data)):
+            all_data[i] = remove_extra_signal(all_data[i])
+            length = len(all_data[i].data)
+            jtag_freq = (length - 310.83) / (-5.75)
+            print("JTAG Frequency Estimate for Sample " + str(i+1) + " : " + str(jtag_freq))        
+            
+    elif input_choice == 'c':
+        pass
+    elif input_choice == 'q':
+        print("Program ends")
+    else:
+        print("Invalid input")
 
 
 # """*************** 3. Working with bitsteam file ***************"""
