@@ -274,9 +274,6 @@ def get_peaks(test_list):
     return peaks
 
 
-
-
-
 # """************ 2. Working with csv files (oscilloscope) ************"""
 
 all_data = []
