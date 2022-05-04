@@ -23,6 +23,9 @@ import glob
 import scipy
 from scipy.misc import electrocardiogram
 from scipy.signal import find_peaks
+from numpy import array, sign, zeros
+from scipy.interpolate import interp1d
+from matplotlib.pyplot import plot,show,grid
 
 import os
 
@@ -258,7 +261,7 @@ def remove_extra_signal(signal):
     energies = signal.energy
 
     for i, item in enumerate(energies):
-        if item <= 800:
+        if item <= 500:
             signal.energy.pop(i)
             signal.data.pop(i)
             signal.num_files = signal.num_files - 1
@@ -294,11 +297,13 @@ def print_peaks(all_data, all_bitstreams):
         res_list = [all_data[i].energy[j] for j in all_data[i].peaks]
         axes[0].plot(all_data[i].peaks, res_list, "x")
         axes[0].set_title('Energy Graph for RF Dataset Number ' + str(i))
+        axes[0].set_xlabel('Sample Count', fontsize = 8)
 
         axes[1].plot(range(0, len(all_bitstreams[i].test_flips)), all_bitstreams[i].test_flips)
         res_list = [all_bitstreams[i].test_flips[j] for j in all_bitstreams[i].peaks]
         axes[1].plot(all_bitstreams[i].peaks, res_list, "x")
         axes[1].set_title('0/1 Transitions in Bitstream for Bitstream Number ' + str(i))
+        axes[1].set_xlabel('Sample Count', fontsize = 8)
 
     else:
 
@@ -307,17 +312,76 @@ def print_peaks(all_data, all_bitstreams):
             res_list = [all_data[i].energy[j] for j in all_data[i].peaks]
             axes[i, 0].plot(all_data[i].peaks, res_list, "x")
             axes[i, 0].set_title('Energy Graph for RF Dataset Number ' + str(i))
+            axes[i, 0].set_xlabel('Sample Count', fontsize = 8)
 
             axes[i, 1].plot(range(0, len(all_bitstreams[i].test_flips)), all_bitstreams[i].test_flips)
             res_list = [all_bitstreams[i].test_flips[j] for j in all_bitstreams[i].peaks]
             axes[i, 1].plot(all_bitstreams[i].peaks, res_list, "x")
             axes[i, 1].set_title('0/1 Transitions in Bitstream for Bitstream Number ' + str(i))
+            axes[i, 1].set_xlabel('Sample Count', fontsize = 8)
     fig.tight_layout()
+    plt.xticks(fontsize=6)
     plt.show()
 
     return
 
 def get_envelop(all_data, all_bitstreams):
+
+    return
+
+def get_one_envelop(input):
+
+    # Code referenced from https://stackoverflow.com/questions/34235530/how-to-get-high-and-low-envelope-of-a-signal
+
+    s = array(input) #This is your noisy vector of values.
+
+    q_u = zeros(s.shape)
+    q_l = zeros(s.shape)
+
+    #Prepend the first value of (s) to the interpolating values. This forces the model to use the same starting point for both the upper and lower envelope models.
+
+    u_x = [0,]
+    u_y = [s[0],]
+
+    l_x = [0,]
+    l_y = [s[0],]
+
+    #Detect peaks and troughs and mark their location in u_x,u_y,l_x,l_y respectively.
+
+    for k in range(1,len(s)-1):
+        if (sign(s[k]-s[k-1])==1) and (sign(s[k]-s[k+1])==1):
+            u_x.append(k)
+            u_y.append(s[k])
+
+        if (sign(s[k]-s[k-1])==-1) and ((sign(s[k]-s[k+1]))==-1):
+            l_x.append(k)
+            l_y.append(s[k])
+
+    #Append the last value of (s) to the interpolating values. This forces the model to use the same ending point for both the upper and lower envelope models.
+
+    u_x.append(len(s)-1)
+    u_y.append(s[-1])
+
+    l_x.append(len(s)-1)
+    l_y.append(s[-1])
+
+    #Fit suitable models to the data. Here I am using cubic splines, similarly to the MATLAB example given in the question.
+
+    u_p = interp1d(u_x,u_y, kind = 'cubic',bounds_error = False, fill_value=0.0)
+    l_p = interp1d(l_x,l_y,kind = 'cubic',bounds_error = False, fill_value=0.0)
+
+    #Evaluate each model over the domain of (s)
+    for k in range(0,len(s)):
+        q_u[k] = u_p(k)
+        q_l[k] = l_p(k)
+
+    #Plot everything
+    # plot(s);hold(True);plot(q_u,'r');plot(q_l,'g');grid(True);show()
+    # plot(s);plot(q_u,'r');plot(q_l,'g');grid(True);show()
+    
+    # plot(s, alpha = 0.3); plot(q_u,'r'); grid(True);show()
+
+    return s, q_u
 
     return
 
@@ -352,7 +416,24 @@ while(input_choice != 'q'):
             print("JTAG Frequency Estimate for Sample " + str(i+1) + " : " + str(jtag_freq))        
             
     elif input_choice == 'c':
-        pass
+        rf_choice = input("Pick a rf energy signal for comparison (0-3): ")
+        bit_choice = input("Pick a bitstream for comparison (0-3): ")
+
+        s1, q_u1 = get_one_envelop(all_data[int(rf_choice)].energy)
+        s2, q_u2 = get_one_envelop(all_bitstreams[int(bit_choice)].test_flips)
+
+        fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(20,8))
+
+        axes[0].plot(s1, alpha = 0.3); axes[0].plot(q_u1,'r'); axes[0].grid(True)
+        axes[0].set_title('Energy Graph for RF Dataset Number ' + str(rf_choice))
+        axes[0].set_xlabel('Sample Count', fontsize = 8)
+
+        axes[1].plot(s2, alpha = 0.3); axes[0].plot(q_u2,'r'); axes[0].grid(True)
+        axes[1].set_title('0/1 Transitions in Bitstream for Bitstream Number ' + str(bit_choice))
+        axes[1].set_xlabel('Sample Count', fontsize = 8)
+
+        show()
+
     elif input_choice == 'q':
         print("Program ends")
     else:
