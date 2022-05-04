@@ -71,7 +71,6 @@ def read_values(file_name):
     #             noise_mag.append(10**(float(f_n[1])/20))
     #             #print("Noise:", round(10**(float(f_n[1])/20), 4))
     # file_n.close()
-    print(file_name)
     file = open(file_name)
     data = file.readlines()
 
@@ -145,7 +144,6 @@ def process_signal(option):
     list_of_data = []
     list_of_energies = []
     list_of_iffts = []
-    print(list_of_files)
 
     for i, item in enumerate(list_of_files):
         this_freq, this_mag = read_values(item)
@@ -163,6 +161,8 @@ def process_signal(option):
 
     
     result = allData(list_of_data, list_of_energies, list_of_iffts)
+
+    print("RF files read for folder " + option)
 
     return result
 
@@ -208,7 +208,6 @@ def flip_counter(full_list, sampling):
                 if work_list[idx2+1] != work_list[idx2]:
                     flip += 1
             total_flips.append(flip)
-        print(idx/length)
      
     return total_flips
 
@@ -223,8 +222,9 @@ def process_bistream(filename, bins):
     bitValues = []        # history of each 1, 0 bit
     length = len(bits)
 
+    print("Reading bitstream file " + filename)
+
     for x, i in enumerate(bits):           # iterate over each byte
-        print(x/length)
 
         i_bin = bin(i)[2:]    # make binary string e.g. '0b110' gut the 0b part
         if len(i_bin) != 8:
@@ -246,13 +246,15 @@ def process_bistream(filename, bins):
     # count how many transitions within chunks of this size
     sampling = len(bitValues) // bins 
     # print("To achieve", bins, "bins, sample at", sampling, "size.")
-    
+    print("Counting 0/1 transitions in bitstream file " + filename)
     test_flips = flip_counter(bitValues, sampling)
+
+    print("Bitstream imported")
+
 
     return bits, zeros, ones, bins, test_flips
 
 def remove_extra_signal(signal):
-    print(len(signal.energy))
     energies = signal.energy
 
     for i, item in enumerate(energies):
@@ -275,16 +277,16 @@ def get_peaks(test_list):
     variance = sum([((x - mean) ** 2) for x in test_list]) / len(test_list)
     res = variance ** 0.5
 
-    bound = mean + 1.75 * res # two standard deviation above mean, 95% percentile of data treated as peaks
+    bound = mean + 1.5 * res # two standard deviation above mean, 95% percentile of data treated as peaks 87%
 
     peaks, _ = find_peaks(test_list, height = bound)
-    print(peaks)
+    # print(peaks)
     return peaks, bound
 
 def print_peaks(all_data, all_bitstreams):
     fig, axes = plt.subplots(nrows=len(all_data), ncols=2, figsize=(12,8))
-    print(axes.shape)
-    print(len(all_data))
+    # print(axes.shape)
+    # print(len(all_data))
     i = 0
 
     if len(all_data) == 1:
@@ -310,13 +312,13 @@ def print_peaks(all_data, all_bitstreams):
             res_list = [all_bitstreams[i].test_flips[j] for j in all_bitstreams[i].peaks]
             axes[i, 1].plot(all_bitstreams[i].peaks, res_list, "x")
             axes[i, 1].set_title('0/1 Transitions in Bitstream for Bitstream Number ' + str(i))
-
+    fig.tight_layout()
     plt.show()
 
     return
 
 def get_envelop(all_data, all_bitstreams):
-    
+
     return
 
 # """************ 2. Working with csv files (oscilloscope) ************"""
@@ -338,7 +340,7 @@ print("Number of datasets: " + str(len(all_data)))
 
 input_choice = ""
 while(input_choice != 'q'):
-    input_choice = input("Import complete, choose between a, b, c: ")
+    input_choice = input("Import complete, choose between a(peaks), b(JTAG freq.), c(envelop), q(quit): ")
 
     if input_choice == 'a':
         print_peaks(all_data, all_bitstreams)
