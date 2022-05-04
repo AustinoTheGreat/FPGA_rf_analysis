@@ -12,7 +12,6 @@ and run. The energies computed are exported to a new CSV. """
 
 import csv
 from fileinput import filename
-from cv2 import _INPUT_ARRAY_STD_VECTOR_UMAT
 import matplotlib.pyplot as plt
 import chardet
 import pandas as pd
@@ -33,7 +32,8 @@ def cls():
 class bitstream:
     def __init__(self, filename, bins):
         self.bits, self.zeros, self.ones, self.bins, self.test_flips = process_bistream(filename, bins)
-        self.peaks = get_peaks(self.test_flips)
+        self.peaks, self.bound = get_peaks(self.test_flips)
+        
 
 class allData:
     def __init__(self, data, energy, ifft):
@@ -41,7 +41,7 @@ class allData:
         self.energy = energy
         self.ifft = ifft
         self.num_files = len(data)
-        self.peaks = get_peaks(self.energy)
+        self.peaks, self.bound = get_peaks(self.energy)
 
 class rfData:
     def __init__(self, freq, mag):
@@ -106,7 +106,7 @@ def read_binary_file(fileName):
 def inverse_transform_helper(data):
     ifft = []
     for i, item in enumerate(data):
-        ifft.append(inverse_transform(item))
+        ifft.append(inverse_transform(item.mag))
 
 
     return ifft
@@ -149,15 +149,17 @@ def process_signal(option):
 
     for i, item in enumerate(list_of_files):
         this_freq, this_mag = read_values(item)
-        this_csv = rfData(this_freq, this_mag)
-
         this_energy = compute_energy(this_freq, this_mag)
+        
+        if this_energy < 800:
+            pass
+        else:
+            this_csv = rfData(this_freq, this_mag)
+            this_ifft = inverse_transform(this_mag)
 
-        this_ifft = inverse_transform(this_mag)
-
-        list_of_data.append(this_csv)
-        list_of_energies.append(this_energy)
-        list_of_iffts.append(this_ifft)
+            list_of_data.append(this_csv)
+            list_of_energies.append(this_energy)
+            list_of_iffts.append(this_ifft)
 
     
     result = allData(list_of_data, list_of_energies, list_of_iffts)
@@ -250,14 +252,19 @@ def process_bistream(filename, bins):
     return bits, zeros, ones, bins, test_flips
 
 def remove_extra_signal(signal):
-    for i, item in enumerate(signal.energy):
-        if item <= 300:
+    print(len(signal.energy))
+    energies = signal.energy
+
+    for i, item in enumerate(energies):
+        if item <= 800:
             signal.energy.pop(i)
             signal.data.pop(i)
             signal.num_files = signal.num_files - 1
         else:
             pass
     signal.ifft = inverse_transform_helper(signal.data)
+
+    signal.peaks, signal.bound = get_peaks(signal.energy)
     
     return signal
     
@@ -268,11 +275,49 @@ def get_peaks(test_list):
     variance = sum([((x - mean) ** 2) for x in test_list]) / len(test_list)
     res = variance ** 0.5
 
-    bound = mean + 2 * res # two standard deviation above mean, 95% percentile of data treated as peaks
+    bound = mean + 1.75 * res # two standard deviation above mean, 95% percentile of data treated as peaks
 
     peaks, _ = find_peaks(test_list, height = bound)
-    return peaks
+    print(peaks)
+    return peaks, bound
 
+def print_peaks(all_data, all_bitstreams):
+    fig, axes = plt.subplots(nrows=len(all_data), ncols=2, figsize=(12,8))
+    print(axes.shape)
+    print(len(all_data))
+    i = 0
+
+    if len(all_data) == 1:
+        axes[0].plot(range(0, len(all_data[i].energy)), all_data[i].energy)
+        res_list = [all_data[i].energy[j] for j in all_data[i].peaks]
+        axes[0].plot(all_data[i].peaks, res_list, "x")
+        axes[0].set_title('Energy Graph for RF Dataset Number ' + str(i))
+
+        axes[1].plot(range(0, len(all_bitstreams[i].test_flips)), all_bitstreams[i].test_flips)
+        res_list = [all_bitstreams[i].test_flips[j] for j in all_bitstreams[i].peaks]
+        axes[1].plot(all_bitstreams[i].peaks, res_list, "x")
+        axes[1].set_title('0/1 Transitions in Bitstream for Bitstream Number ' + str(i))
+
+    else:
+
+        for i in range(0, len(all_data)):
+            axes[i, 0].plot(range(0, len(all_data[i].energy)), all_data[i].energy)
+            res_list = [all_data[i].energy[j] for j in all_data[i].peaks]
+            axes[i, 0].plot(all_data[i].peaks, res_list, "x")
+            axes[i, 0].set_title('Energy Graph for RF Dataset Number ' + str(i))
+
+            axes[i, 1].plot(range(0, len(all_bitstreams[i].test_flips)), all_bitstreams[i].test_flips)
+            res_list = [all_bitstreams[i].test_flips[j] for j in all_bitstreams[i].peaks]
+            axes[i, 1].plot(all_bitstreams[i].peaks, res_list, "x")
+            axes[i, 1].set_title('0/1 Transitions in Bitstream for Bitstream Number ' + str(i))
+
+    plt.show()
+
+    return
+
+def get_envelop(all_data, all_bitstreams):
+    
+    return
 
 # """************ 2. Working with csv files (oscilloscope) ************"""
 
@@ -280,21 +325,26 @@ all_data = []
 all_bitstreams = []
 
 input_num = input("Number of datasets to categorize: ")
+i = 0
 
 for i in range (1, int(input_num) + 1):
-    all_data.append(process_signal(input_num))
-    all_bitstreams.append(bitstream(input_num + '.bit', all_data[i - 1].num_files))
+    all_data.append(process_signal(str(i)))
+    all_bitstreams.append(bitstream(str(i) + '.bit', all_data[i - 1].num_files))
 
+# for i in range(0, len(all_data)):
+#     all_data[i] = remove_extra_signal(all_data[i])
 
-input_choice = input("Import complete, choose between a, b, c")
+print("Number of datasets: " + str(len(all_data)))
 
+input_choice = ""
 while(input_choice != 'q'):
-    if input_choice == 'a':
+    input_choice = input("Import complete, choose between a, b, c: ")
 
-        pass
+    if input_choice == 'a':
+        print_peaks(all_data, all_bitstreams)
+        
     elif input_choice == 'b':
         for i in range(0, len(all_data)):
-            all_data[i] = remove_extra_signal(all_data[i])
             length = len(all_data[i].data)
             jtag_freq = (length - 310.83) / (-5.75)
             print("JTAG Frequency Estimate for Sample " + str(i+1) + " : " + str(jtag_freq))        
