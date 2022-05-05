@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """ May 4th
-@author: Austin Zhu
+@author: yujun, austin
 Read .bit and rf files
 3 Main goals
 A: Peaks matching/comparison between bitstream transitions and rf energy data
@@ -435,8 +435,8 @@ while(input_choice != 'q'):
             print("JTAG Frequency Estimate for Sample " + str(i+1) + " : " + str(jtag_freq))        
             
     elif input_choice == 'c':
-        rf_choice = input("Pick a rf energy signal for comparison (0-3): ")
-        bit_choice = input("Pick a bitstream for comparison (0-3): ")
+        rf_choice = input("Pick a rf energy signal for comparison (0-3, when 4 datasets were orginally imported): ")
+        bit_choice = input("Pick a bitstream for comparison (0-3, when 4 datasets were orginally imported): ")
 
         s1, q_u1 = get_one_envelop(all_data[int(rf_choice)].energy)
         s2, q_u2 = get_one_envelop(all_bitstreams[int(bit_choice)].test_flips)
